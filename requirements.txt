@@ -1,0 +1,16 @@
+# Core LangChain packages - 2025 versions
+langchain
+langchain-openai
+langchain-postgres  # 2025 推荐的 PostgreSQL 集成包
+langgraph
+
+# LangGraph PostgreSQL 集成 - 2025 新增
+langgraph-checkpoint-postgres  # LangGraph 检查点和持久化
+psycopg[binary,pool]  # PostgreSQL 驱动 - psycopg3 (2025 推荐)
+
+# 向量数据库
+pgvector
+
+# 其他依赖
+requests
+firecrawl-py
