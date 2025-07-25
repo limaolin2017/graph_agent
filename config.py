@@ -67,6 +67,12 @@ def setup_environment() -> bool:
     else:
         print("⚠️ Firecrawl integration disabled, using basic requests")
 
+    # Check if LangSmith tracing is enabled
+    if os.getenv("LANGCHAIN_TRACING_V2") == "true":
+        print("📊 LangSmith tracing enabled via .env configuration")
+    else:
+        print("⚠️ LangSmith tracing disabled")
+
     print("🎯 Environment configuration complete!")
     return True
 
