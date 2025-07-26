@@ -25,37 +25,47 @@ def extract_url_from_query(query: str) -> str:
     return match.group(0) if match else DEFAULT_URL
 
 
-def escape_markdown(text: str) -> str:
-    """Escape markdown special characters"""
-    if not text:
-        return text
-    # Escape backslashes first
-    text = text.replace("\\", "\\\\")
-    # Escape other markdown characters
-    for char in "*_`~>#|-{}[].!+()":
-        text = text.replace(char, "\\" + char)
-    return text
-
-
 def format_message_history(history: List[Dict]) -> List[Tuple[str, str]]:
     """Format message history for display in Chatbot component"""
     formatted = []
+    current_user_msg = None
+    current_bot_msgs = []
+    
     for msg in history:
-        # Skip user messages as Gradio handles them automatically
-        if msg["type"] == "ai":
-            formatted.append((None, escape_markdown(msg["content"])))  # AI message
+        if msg["type"] == "user":
+            # If we have accumulated bot messages, add them with the previous user message
+            if current_user_msg is not None and current_bot_msgs:
+                combined_bot_msg = "\n\n".join(current_bot_msgs)
+                formatted.append((current_user_msg, combined_bot_msg))
+                current_bot_msgs = []
+            
+            # Start a new user message
+            current_user_msg = msg["content"]
+            
+        elif msg["type"] == "ai":
+            current_bot_msgs.append(msg["content"])
         elif msg["type"] == "tool_call":
             # Format tool call with special styling
             tool_content = f"🛠️ **Tool Call:** {msg['content']}"
-            formatted.append((None, tool_content))  # Tool call message
+            current_bot_msgs.append(tool_content)
         elif msg["type"] == "tool_result":
             # Format tool result with special styling
             tool_content = f"📊 **Tool Result:** {msg['content']}"
-            formatted.append((None, tool_content))  # Tool result message
+            current_bot_msgs.append(tool_content)
         elif msg["type"] == "system":
             # Format system messages with special styling
             system_content = f"⚙️ **System:** {msg['content']}"
-            formatted.append((None, system_content))  # System message
+            current_bot_msgs.append(system_content)
+    
+    # Add any remaining messages
+    if current_user_msg is not None:
+        if current_bot_msgs:
+            combined_bot_msg = "\n\n".join(current_bot_msgs)
+            formatted.append((current_user_msg, combined_bot_msg))
+        else:
+            # If no bot response yet, add empty response
+            formatted.append((current_user_msg, ""))
+    
     return formatted
 
 
@@ -64,8 +74,9 @@ async def process_user_query(query: str, history: List[Dict], thread_id: str):
     Process user query through the agent and yield updated history
     Yields: (response_text, updated_history)
     """
-    # Don't add user message to history as Gradio handles this automatically
+    # Add user message to history
     history = history.copy() if history else []
+    history.append({"type": "user", "content": query})
     
     url = extract_url_from_query(query)
     
@@ -142,32 +153,67 @@ async def process_user_query(query: str, history: List[Dict], thread_id: str):
 
 def clear_history():
     """Clear the chat history"""
+    # Reset thread ID when clearing history
+    if hasattr(respond, 'thread_id'):
+        respond.thread_id = str(uuid.uuid4())
     return [], []
 
 
 def respond(query, history):
     """Process user query and yield response"""
-    # Generate a new thread ID for each conversation
-    thread_id = str(uuid.uuid4())
+    if not query.strip():
+        return history, history
     
     try:
-        # Create a new event loop if needed
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+        # Get agent
+        agent = get_agent()
         
-        # Run the async function synchronously
-        async_gen = process_user_query(query, history, thread_id)
-        while True:
-            try:
-                response_text, updated_history = loop.run_until_complete(async_gen.__anext__())
-                yield response_text, updated_history
-            except StopAsyncIteration:
-                break
+        # Simple config
+        config = {"configurable": {"thread_id": "simple_chat"}}
+        
+        # Stream the agent execution to capture all steps
+        full_response = []
+        
+        for step in agent.stream(
+            {"messages": [HumanMessage(content=query)]},
+            config,
+            stream_mode="values"
+        ):
+            if "messages" in step and step["messages"]:
+                last_message = step["messages"][-1]
+                
+                # Handle tool calls
+                if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+                    for tool_call in last_message.tool_calls:
+                        tool_name = tool_call["name"]
+                        tool_args = tool_call.get("args", {})
+                        full_response.append(f"🛠️ **Tool Call:** {tool_name}")
+                        if tool_args:
+                            full_response.append(f"   Args: {tool_args}")
+                
+                # Handle tool results
+                elif hasattr(last_message, 'tool_call_id'):
+                    result_content = getattr(last_message, 'content', str(last_message))
+                    full_response.append(f"📊 **Tool Result:**")
+                    full_response.append(f"   {result_content}")
+                
+                # Handle AI responses
+                else:
+                    content = getattr(last_message, 'content', '')
+                    if content:
+                        full_response.append(f"🤖 **AI Response:**")
+                        full_response.append(f"   {content}")
+        
+        # Combine all responses
+        combined_response = "\n\n".join(full_response) if full_response else "No response from agent"
+        
+        # Add to history
+        history.append([query, combined_response])
+        return history, history
+        
     except Exception as e:
-        yield f"❌ Error: {str(e)}", history
+        history.append([query, f"❌ Error: {str(e)}"])
+        return history, history
 
 
 # Gradio UI setup

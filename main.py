@@ -18,6 +18,6 @@ from gradio_app import demo
 
 if __name__ == "__main__":
     print("🚀 Starting Web Testing Agent...")
-    print("🌐 Open your browser to http://localhost:7860")
+    print("🌐 Open your browser to http://localhost:7861")
     print("💡 To use the CLI version, run: python cli.py")
-    demo.launch(share=True, server_port=7860, show_api=False)
+    demo.launch(share=True, server_port=7861, show_api=False)
