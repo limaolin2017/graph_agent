@@ -7,7 +7,7 @@ import gradio as gr
 import asyncio
 import re
 import uuid
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from agent import get_agent
 from database import db
 from config import setup_environment
@@ -25,22 +25,21 @@ def extract_url_from_query(query: str) -> str:
     return match.group(0) if match else DEFAULT_URL
 
 
-def format_message_history(history: List[Dict]) -> List[Tuple[str, str]]:
-    """Format message history for display in Chatbot component"""
+def format_message_history(history: List[Dict]) -> List[Dict]:
+    """Format message history for display in Chatbot component using OpenAI-style messages"""
     formatted = []
-    current_user_msg = None
     current_bot_msgs = []
     
     for msg in history:
         if msg["type"] == "user":
-            # If we have accumulated bot messages, add them with the previous user message
-            if current_user_msg is not None and current_bot_msgs:
+            # If we have accumulated bot messages, add them first
+            if current_bot_msgs:
                 combined_bot_msg = "\n\n".join(current_bot_msgs)
-                formatted.append((current_user_msg, combined_bot_msg))
+                formatted.append({"role": "assistant", "content": combined_bot_msg})
                 current_bot_msgs = []
             
-            # Start a new user message
-            current_user_msg = msg["content"]
+            # Add user message
+            formatted.append({"role": "user", "content": msg["content"]})
             
         elif msg["type"] == "ai":
             current_bot_msgs.append(msg["content"])
@@ -57,14 +56,10 @@ def format_message_history(history: List[Dict]) -> List[Tuple[str, str]]:
             system_content = f"⚙️ **System:** {msg['content']}"
             current_bot_msgs.append(system_content)
     
-    # Add any remaining messages
-    if current_user_msg is not None:
-        if current_bot_msgs:
-            combined_bot_msg = "\n\n".join(current_bot_msgs)
-            formatted.append((current_user_msg, combined_bot_msg))
-        else:
-            # If no bot response yet, add empty response
-            formatted.append((current_user_msg, ""))
+    # Add any remaining bot messages
+    if current_bot_msgs:
+        combined_bot_msg = "\n\n".join(current_bot_msgs)
+        formatted.append({"role": "assistant", "content": combined_bot_msg})
     
     return formatted
 
@@ -211,12 +206,14 @@ def respond(query, history):
         # Combine all responses
         combined_response = "\n\n".join(full_response) if full_response else "No response from agent"
         
-        # Add to history
-        history.append([query, combined_response])
+        # Add to history using OpenAI-style messages
+        history.append({"role": "user", "content": query})
+        history.append({"role": "assistant", "content": combined_response})
         return history, history
         
     except Exception as e:
-        history.append([query, f"❌ Error: {str(e)}"])
+        history.append({"role": "user", "content": query})
+        history.append({"role": "assistant", "content": f"❌ Error: {str(e)}"})
         return history, history
 
 
@@ -232,7 +229,8 @@ with gr.Blocks(title="Web Testing Agent", analytics_enabled=False) as demo:
     chatbot = gr.Chatbot(
         label="Conversation",
         bubble_full_width=False,
-        height=500
+        height=500,
+        type='messages'
     )
     
     with gr.Row():
