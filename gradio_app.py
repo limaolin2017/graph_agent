@@ -7,6 +7,7 @@ import gradio as gr
 import asyncio
 import re
 import uuid
+import time
 from typing import List, Dict
 from agent import get_agent
 from database import db
@@ -154,10 +155,19 @@ def clear_history():
     return [], []
 
 
-def respond(query, history):
-    """Process user query and yield response"""
+async def respond_stream_async(query, history):
+    """Async version of streaming response for better performance"""
     if not query.strip():
-        return history, history
+        yield history, history
+        return
+    
+    # Add user message to history
+    history = history.copy() if history else []
+    history.append({"role": "user", "content": query})
+    
+    # Initialize assistant message
+    history.append({"role": "assistant", "content": "🤔 思考中..."})
+    yield history, history
     
     try:
         # Get agent
@@ -166,10 +176,12 @@ def respond(query, history):
         # Simple config
         config = {"configurable": {"thread_id": "simple_chat"}}
         
-        # Stream the agent execution to capture all steps
-        full_response = []
+        # Track response components
+        response_parts = []
+        current_ai_content = ""
         
-        for step in agent.stream(
+        # Stream the agent execution
+        async for step in agent.astream(
             {"messages": [HumanMessage(content=query)]},
             config,
             stream_mode="values"
@@ -186,89 +198,272 @@ def respond(query, history):
                     for tool_call in last_message.tool_calls:
                         tool_name = tool_call["name"]
                         tool_args = tool_call.get("args", {})
-                        full_response.append(f"🛠️ **Tool Call:** {tool_name}")
+                        tool_info = f"🛠️ **调用工具:** {tool_name}"
                         if tool_args:
-                            full_response.append(f"   Args: {tool_args}")
+                            # Format args nicely
+                            args_str = ", ".join([f"{k}={v}" for k, v in tool_args.items()])
+                            tool_info += f"\n   参数: {args_str}"
+                        
+                        response_parts.append(tool_info)
+                        
+                        # Update display
+                        full_response = "\n\n".join(response_parts)
+                        if current_ai_content:
+                            full_response += f"\n\n🤖 **AI回复:**\n{current_ai_content}"
+                        
+                        history[-1]["content"] = full_response
+                        yield history, history
+                        await asyncio.sleep(0.1)  # Small delay for better UX
                 
                 # Handle tool results
                 elif hasattr(last_message, 'tool_call_id'):
                     result_content = getattr(last_message, 'content', str(last_message))
-                    full_response.append(f"📊 **Tool Result:**")
-                    full_response.append(f"   {result_content}")
+                    # Truncate very long results
+                    if len(result_content) > 500:
+                        result_content = result_content[:500] + "..."
+                    
+                    tool_result = f"📊 **工具结果:**\n{result_content}"
+                    response_parts.append(tool_result)
+                    
+                    # Update display
+                    full_response = "\n\n".join(response_parts)
+                    if current_ai_content:
+                        full_response += f"\n\n🤖 **AI回复:**\n{current_ai_content}"
+                    
+                    history[-1]["content"] = full_response
+                    yield history, history
+                    await asyncio.sleep(0.1)  # Small delay for better UX
                 
                 # Handle AI responses
                 else:
                     content = getattr(last_message, 'content', '')
                     if content and content != query:  # Make sure it's not the user query
-                        full_response.append(f"🤖 **AI Response:**")
-                        full_response.append(f"   {content}")
+                        current_ai_content = content
+                        
+                        # Update display
+                        full_response = "\n\n".join(response_parts)
+                        if current_ai_content:
+                            full_response += f"\n\n🤖 **AI回复:**\n{current_ai_content}"
+                        
+                        history[-1]["content"] = full_response
+                        yield history, history
+                        await asyncio.sleep(0.05)  # Smaller delay for AI responses
         
-        # Combine all responses
-        combined_response = "\n\n".join(full_response) if full_response else "No response from agent"
+        # Final yield with complete response
+        if not response_parts and not current_ai_content:
+            history[-1]["content"] = "❌ 代理没有返回响应"
         
-        # Add to history using OpenAI-style messages
-        history.append({"role": "user", "content": query})
-        history.append({"role": "assistant", "content": combined_response})
-        return history, history
+        yield history, history
         
     except Exception as e:
-        history.append({"role": "user", "content": query})
-        history.append({"role": "assistant", "content": f"❌ Error: {str(e)}"})
-        return history, history
+        error_msg = f"❌ 错误: {str(e)}"
+        history[-1]["content"] = error_msg
+        yield history, history
+
+def respond_stream(query, history):
+    """Process user query with streaming response"""
+    if not query.strip():
+        yield history, history
+        return
+    
+    # Add user message to history
+    history = history.copy() if history else []
+    history.append({"role": "user", "content": query})
+    
+    # Initialize assistant message with thinking indicator
+    history.append({"role": "assistant", "content": "🤔 正在思考..."})
+    yield history, history
+    
+    try:
+        # Get agent
+        agent = get_agent()
+        
+        # Simple config with unique thread ID for each conversation
+        thread_id = f"chat_{int(time.time())}"
+        config = {"configurable": {"thread_id": thread_id}}
+        
+        # Track response components
+        response_parts = []
+        current_ai_content = ""
+        step_count = 0
+        
+        # Stream the agent execution
+        for step in agent.stream(
+            {"messages": [HumanMessage(content=query)]},
+            config,
+            stream_mode="values"
+        ):
+            step_count += 1
+            
+            if "messages" in step and step["messages"]:
+                last_message = step["messages"][-1]
+                
+                # Skip user messages (HumanMessage)
+                if hasattr(last_message, 'type') and last_message.type == 'human':
+                    continue
+                
+                # Handle tool calls
+                if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+                    for tool_call in last_message.tool_calls:
+                        tool_name = tool_call["name"]
+                        tool_args = tool_call.get("args", {})
+                        
+                        # Create a more user-friendly tool display
+                        tool_display_names = {
+                            "scrape_url": "网页抓取",
+                            "generate_requirements": "生成需求",
+                            "generate_test_code": "生成测试代码",
+                            "show_status": "显示状态",
+                            "search_experience": "搜索经验"
+                        }
+                        
+                        display_name = tool_display_names.get(tool_name, tool_name)
+                        tool_info = f"🛠️ **正在执行:** {display_name}"
+                        
+                        if tool_args:
+                            # Format args nicely, but don't show all details
+                            if 'url' in tool_args:
+                                tool_info += f"\n   🌐 URL: {tool_args['url']}"
+                            elif 'query' in tool_args:
+                                tool_info += f"\n   🔍 查询: {tool_args['query']}"
+                        
+                        response_parts.append(tool_info)
+                        
+                        # Update display
+                        full_response = "\n\n".join(response_parts)
+                        if current_ai_content:
+                            full_response += f"\n\n🤖 **AI分析:**\n{current_ai_content}"
+                        
+                        history[-1]["content"] = full_response
+                        yield history, history
+                
+                # Handle tool results
+                elif hasattr(last_message, 'tool_call_id'):
+                    result_content = getattr(last_message, 'content', str(last_message))
+                    
+                    # Truncate very long results and make them more readable
+                    if len(result_content) > 800:
+                        result_content = result_content[:800] + "\n\n... (结果已截断)"
+                    
+                    tool_result = f"✅ **执行完成**\n```\n{result_content}\n```"
+                    response_parts.append(tool_result)
+                    
+                    # Update display
+                    full_response = "\n\n".join(response_parts)
+                    if current_ai_content:
+                        full_response += f"\n\n🤖 **AI分析:**\n{current_ai_content}"
+                    
+                    history[-1]["content"] = full_response
+                    yield history, history
+                
+                # Handle AI responses
+                else:
+                    content = getattr(last_message, 'content', '')
+                    if content and content != query:  # Make sure it's not the user query
+                        current_ai_content = content
+                        
+                        # Update display
+                        full_response = "\n\n".join(response_parts)
+                        if current_ai_content:
+                            full_response += f"\n\n🤖 **AI分析:**\n{current_ai_content}"
+                        
+                        history[-1]["content"] = full_response
+                        yield history, history
+        
+        # Final yield with complete response
+        if not response_parts and not current_ai_content:
+            history[-1]["content"] = "❌ 抱歉，我没有生成任何响应。请重试或检查您的问题。"
+        
+        # Add completion indicator
+        if history[-1]["content"] and not history[-1]["content"].endswith("✨"):
+            history[-1]["content"] += "\n\n✨ *回答完成*"
+        
+        yield history, history
+        
+    except Exception as e:
+        error_msg = f"❌ **发生错误:** {str(e)}\n\n请重试或联系支持。"
+        history[-1]["content"] = error_msg
+        yield history, history
 
 
 # Gradio UI setup
-with gr.Blocks(title="Web Testing Agent", analytics_enabled=False) as demo:
-    gr.Markdown("# 🚀 Web Testing Agent")
-    gr.Markdown("Intelligent agent with database storage and multi-turn conversation memory")
+with gr.Blocks(
+    title="Web Testing Agent", 
+    analytics_enabled=False,
+    theme=gr.themes.Soft(),
+    css="""
+    .gradio-container {
+        max-width: 1200px !important;
+    }
+    .chat-message {
+        font-size: 14px;
+    }
+    """
+) as demo:
+    gr.Markdown("# 🚀 智能网站测试代理")
+    gr.Markdown("🤖 具有数据库存储和多轮对话记忆的智能代理，支持实时流式响应")
     
     # Store chat history in state
     history_state = gr.State([])
     
-    # Chat display
+    # Chat display with streaming support
     chatbot = gr.Chatbot(
-        label="Conversation",
+        label="💬 对话",
         bubble_full_width=False,
-        height=500,
-        type='messages'
+        height=600,
+        type='messages',
+        show_copy_button=True,
+        avatar_images=("👤", "🤖")
     )
     
     with gr.Row():
         # User input
         user_input = gr.Textbox(
-            label="Your Query",
-            placeholder="Enter your query to start testing a website...",
-            lines=3,
-            scale=9
+            label="💭 您的问题",
+            placeholder="请输入您的问题来开始测试网站... (例如: 帮我测试 https://example.com)",
+            lines=2,
+            scale=8,
+            max_lines=5
         )
         
         # Submit button
-        submit_btn = gr.Button("Submit", variant="primary", scale=1)
+        submit_btn = gr.Button("🚀 发送", variant="primary", scale=1, size="lg")
     
-    # Clear button
-    clear_btn = gr.Button("Clear Chat")
+    with gr.Row():
+        # Clear button
+        clear_btn = gr.Button("🗑️ 清空对话", variant="secondary")
+        
+        # Status indicator
+        gr.Markdown("💡 **提示:** 支持实时流式响应，您可以看到代理的思考过程")
     
-    # Event handlers
+    # Event handlers with streaming support
     submit_btn.click(
-        fn=respond,
+        fn=respond_stream,
         inputs=[user_input, history_state],
         outputs=[chatbot, history_state],
-        queue=False
+        show_progress="minimal"
+    ).then(
+        fn=lambda: "",  # Clear input after submission
+        inputs=[],
+        outputs=[user_input]
     )
     
     clear_btn.click(
         fn=clear_history,
         inputs=[],
-        outputs=[history_state, chatbot],
-        queue=False
+        outputs=[history_state, chatbot]
     )
     
     # Allow submitting with Enter key
     user_input.submit(
-        fn=respond,
+        fn=respond_stream,
         inputs=[user_input, history_state],
         outputs=[chatbot, history_state],
-        queue=False
+        show_progress="minimal"
+    ).then(
+        fn=lambda: "",  # Clear input after submission
+        inputs=[],
+        outputs=[user_input]
     )
 
 
