@@ -166,7 +166,7 @@ async def respond_stream_async(query, history):
     history.append({"role": "user", "content": query})
     
     # Initialize assistant message
-    history.append({"role": "assistant", "content": "🤔 思考中..."})
+    history.append({"role": "assistant", "content": "🤔 Thinking..."})
     yield history, history
     
     try:
@@ -198,18 +198,18 @@ async def respond_stream_async(query, history):
                     for tool_call in last_message.tool_calls:
                         tool_name = tool_call["name"]
                         tool_args = tool_call.get("args", {})
-                        tool_info = f"🛠️ **调用工具:** {tool_name}"
+                        tool_info = f"🛠️ **Tool Call:** {tool_name}"
                         if tool_args:
                             # Format args nicely
                             args_str = ", ".join([f"{k}={v}" for k, v in tool_args.items()])
-                            tool_info += f"\n   参数: {args_str}"
+                            tool_info += f"\n   Args: {args_str}"
                         
                         response_parts.append(tool_info)
                         
                         # Update display
                         full_response = "\n\n".join(response_parts)
                         if current_ai_content:
-                            full_response += f"\n\n🤖 **AI回复:**\n{current_ai_content}"
+                            full_response += f"\n\n🤖 **AI Response:**\n{current_ai_content}"
                         
                         history[-1]["content"] = full_response
                         yield history, history
@@ -222,13 +222,13 @@ async def respond_stream_async(query, history):
                     if len(result_content) > 500:
                         result_content = result_content[:500] + "..."
                     
-                    tool_result = f"📊 **工具结果:**\n{result_content}"
+                    tool_result = f"📊 **Tool Result:**\n{result_content}"
                     response_parts.append(tool_result)
                     
                     # Update display
                     full_response = "\n\n".join(response_parts)
                     if current_ai_content:
-                        full_response += f"\n\n🤖 **AI回复:**\n{current_ai_content}"
+                        full_response += f"\n\n🤖 **AI Response:**\n{current_ai_content}"
                     
                     history[-1]["content"] = full_response
                     yield history, history
@@ -243,7 +243,7 @@ async def respond_stream_async(query, history):
                         # Update display
                         full_response = "\n\n".join(response_parts)
                         if current_ai_content:
-                            full_response += f"\n\n🤖 **AI回复:**\n{current_ai_content}"
+                            full_response += f"\n\n🤖 **AI Response:**\n{current_ai_content}"
                         
                         history[-1]["content"] = full_response
                         yield history, history
@@ -251,12 +251,12 @@ async def respond_stream_async(query, history):
         
         # Final yield with complete response
         if not response_parts and not current_ai_content:
-            history[-1]["content"] = "❌ 代理没有返回响应"
+            history[-1]["content"] = "❌ Agent didn't return a response"
         
         yield history, history
         
     except Exception as e:
-        error_msg = f"❌ 错误: {str(e)}"
+        error_msg = f"❌ Error: {str(e)}"
         history[-1]["content"] = error_msg
         yield history, history
 
@@ -271,7 +271,7 @@ def respond_stream(query, history):
     history.append({"role": "user", "content": query})
     
     # Initialize assistant message with thinking indicator
-    history.append({"role": "assistant", "content": "🤔 正在思考..."})
+    history.append({"role": "assistant", "content": "🤔 Thinking..."})
     yield history, history
     
     try:
@@ -310,29 +310,29 @@ def respond_stream(query, history):
                         
                         # Create a more user-friendly tool display
                         tool_display_names = {
-                            "scrape_url": "网页抓取",
-                            "generate_requirements": "生成需求",
-                            "generate_test_code": "生成测试代码",
-                            "show_status": "显示状态",
-                            "search_experience": "搜索经验"
+                            "scrape_url": "Web Scraping",
+                            "generate_requirements": "Generate Requirements",
+                            "generate_test_code": "Generate Test Code",
+                            "show_status": "Show Status",
+                            "search_experience": "Search Experience"
                         }
                         
                         display_name = tool_display_names.get(tool_name, tool_name)
-                        tool_info = f"🛠️ **正在执行:** {display_name}"
+                        tool_info = f"🛠️ **Executing:** {display_name}"
                         
                         if tool_args:
                             # Format args nicely, but don't show all details
                             if 'url' in tool_args:
                                 tool_info += f"\n   🌐 URL: {tool_args['url']}"
                             elif 'query' in tool_args:
-                                tool_info += f"\n   🔍 查询: {tool_args['query']}"
+                                tool_info += f"\n   🔍 Query: {tool_args['query']}"
                         
                         response_parts.append(tool_info)
                         
                         # Update display
                         full_response = "\n\n".join(response_parts)
                         if current_ai_content:
-                            full_response += f"\n\n🤖 **AI分析:**\n{current_ai_content}"
+                            full_response += f"\n\n🤖 **AI Analysis:**\n{current_ai_content}"
                         
                         history[-1]["content"] = full_response
                         yield history, history
@@ -343,15 +343,15 @@ def respond_stream(query, history):
                     
                     # Truncate very long results and make them more readable
                     if len(result_content) > 800:
-                        result_content = result_content[:800] + "\n\n... (结果已截断)"
+                        result_content = result_content[:800] + "\n\n... (result truncated)"
                     
-                    tool_result = f"✅ **执行完成**\n```\n{result_content}\n```"
+                    tool_result = f"✅ **Execution Complete**\n```\n{result_content}\n```"
                     response_parts.append(tool_result)
                     
                     # Update display
                     full_response = "\n\n".join(response_parts)
                     if current_ai_content:
-                        full_response += f"\n\n🤖 **AI分析:**\n{current_ai_content}"
+                        full_response += f"\n\n🤖 **AI Analysis:**\n{current_ai_content}"
                     
                     history[-1]["content"] = full_response
                     yield history, history
@@ -365,23 +365,23 @@ def respond_stream(query, history):
                         # Update display
                         full_response = "\n\n".join(response_parts)
                         if current_ai_content:
-                            full_response += f"\n\n🤖 **AI分析:**\n{current_ai_content}"
+                            full_response += f"\n\n🤖 **AI Analysis:**\n{current_ai_content}"
                         
                         history[-1]["content"] = full_response
                         yield history, history
         
         # Final yield with complete response
         if not response_parts and not current_ai_content:
-            history[-1]["content"] = "❌ 抱歉，我没有生成任何响应。请重试或检查您的问题。"
+            history[-1]["content"] = "❌ Sorry, I didn't generate any response. Please try again or check your question."
         
         # Add completion indicator
         if history[-1]["content"] and not history[-1]["content"].endswith("✨"):
-            history[-1]["content"] += "\n\n✨ *回答完成*"
+            history[-1]["content"] += "\n\n✨ *Response Complete*"
         
         yield history, history
         
     except Exception as e:
-        error_msg = f"❌ **发生错误:** {str(e)}\n\n请重试或联系支持。"
+        error_msg = f"❌ **Error Occurred:** {str(e)}\n\nPlease try again or contact support."
         history[-1]["content"] = error_msg
         yield history, history
 
@@ -400,15 +400,15 @@ with gr.Blocks(
     }
     """
 ) as demo:
-    gr.Markdown("# 🚀 智能网站测试代理")
-    gr.Markdown("🤖 具有数据库存储和多轮对话记忆的智能代理，支持实时流式响应")
+    gr.Markdown("# 🚀 Web Testing Agent")
+    gr.Markdown("🤖 Intelligent agent with database storage and multi-turn conversation memory, supporting real-time streaming responses")
     
     # Store chat history in state
     history_state = gr.State([])
     
     # Chat display with streaming support
     chatbot = gr.Chatbot(
-        label="💬 对话",
+        label="💬 Conversation",
         bubble_full_width=False,
         height=600,
         type='messages',
@@ -419,22 +419,22 @@ with gr.Blocks(
     with gr.Row():
         # User input
         user_input = gr.Textbox(
-            label="💭 您的问题",
-            placeholder="请输入您的问题来开始测试网站... (例如: 帮我测试 https://example.com)",
+            label="💭 Your Question",
+            placeholder="Enter your question to start testing a website... (e.g., Help me test https://example.com)",
             lines=2,
             scale=8,
             max_lines=5
         )
         
         # Submit button
-        submit_btn = gr.Button("🚀 发送", variant="primary", scale=1, size="lg")
+        submit_btn = gr.Button("🚀 Send", variant="primary", scale=1, size="lg")
     
     with gr.Row():
         # Clear button
-        clear_btn = gr.Button("🗑️ 清空对话", variant="secondary")
+        clear_btn = gr.Button("🗑️ Clear Chat", variant="secondary")
         
         # Status indicator
-        gr.Markdown("💡 **提示:** 支持实时流式响应，您可以看到代理的思考过程")
+        gr.Markdown("💡 **Tip:** Supports real-time streaming responses - you can see the agent's thinking process")
     
     # Event handlers with streaming support
     submit_btn.click(
