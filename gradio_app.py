@@ -182,6 +182,10 @@ def respond(query, history):
             if "messages" in step and step["messages"]:
                 last_message = step["messages"][-1]
                 
+                # Skip user messages (HumanMessage)
+                if hasattr(last_message, 'type') and last_message.type == 'human':
+                    continue
+                
                 # Handle tool calls
                 if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
                     for tool_call in last_message.tool_calls:
@@ -200,7 +204,7 @@ def respond(query, history):
                 # Handle AI responses
                 else:
                     content = getattr(last_message, 'content', '')
-                    if content:
+                    if content and content != query:  # Make sure it's not the user query
                         full_response.append(f"🤖 **AI Response:**")
                         full_response.append(f"   {content}")
         
