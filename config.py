@@ -23,7 +23,9 @@ class ConfigManager:
                 if line and not line.startswith('#') and '=' in line:
                     key, value = line.split('=', 1)
                     value = value.strip('"\'')
-                    os.environ[key] = value
+                    # Only set if not already in environment (don't override Docker env vars)
+                    if key not in os.environ:
+                        os.environ[key] = value
 
     @staticmethod
     def get_api_key(key_name: str, required: bool = True) -> Optional[str]:
