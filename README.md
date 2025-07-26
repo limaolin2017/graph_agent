@@ -58,8 +58,11 @@ export FIRECRAWL_API_KEY="your-firecrawl-api-key"
 
 ### Run Examples
 ```bash
-# Main program - unified entry point
+# Main program - Gradio Web UI (user-friendly interface)
 python main.py
+
+# Command-line interface (advanced users)
+python cli.py
 
 # Test database connection and PGVector search
 python tests/test_db.py
@@ -113,7 +116,8 @@ Agent: [Uses previous context to generate relevant tests]
 ## 📁 Project Structure
 
 ```
-├── main.py                 # Main entry point with session management
+├── main.py                 # Main entry point (Gradio Web UI)
+├── cli.py                  # Command-line interface
 ├── config.py              # Configuration management (ConfigManager class)
 ├── requirements.txt        # Python dependencies (2025 versions)
 ├── agent/

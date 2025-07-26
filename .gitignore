@@ -59,4 +59,3 @@ logs/
 debug_*.py
 quick_test.py
 test_*.py
-.chainlit

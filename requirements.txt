@@ -15,5 +15,4 @@ pgvector
 requests
 firecrawl-py
 
-# Web UI Framework
-chainlit
+gradio
