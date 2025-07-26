@@ -1,389 +1,72 @@
 """
-Gradio Web UI for Web Testing Agent
-Intelligent agent with database storage and multi-turn conversation memory
+Gradio Web UI for Web Testing Agent - SIMPLIFIED VERSION
 """
 
 import gradio as gr
-import asyncio
-import re
 import uuid
-import time
 from typing import List, Dict
 from agent import get_agent
-from database import db
-from config import setup_environment
 from langchain_core.messages import HumanMessage
 
-# Constants
-URL_PATTERN = r'https?://[^\s]+'
-DEFAULT_URL = "unknown"
-MAX_DESCRIPTION_LENGTH = 100
-
-
-def extract_url_from_query(query: str) -> str:
-    """Extract URL from query string"""
-    match = re.search(URL_PATTERN, query)
-    return match.group(0) if match else DEFAULT_URL
-
-
-def format_message_history(history: List[Dict]) -> List[Dict]:
-    """Format message history for display in Chatbot component using OpenAI-style messages"""
-    formatted = []
-    current_bot_msgs = []
-    
-    for msg in history:
-        if msg["type"] == "user":
-            # If we have accumulated bot messages, add them first
-            if current_bot_msgs:
-                combined_bot_msg = "\n\n".join(current_bot_msgs)
-                formatted.append({"role": "assistant", "content": combined_bot_msg})
-                current_bot_msgs = []
-            
-            # Add user message
-            formatted.append({"role": "user", "content": msg["content"]})
-            
-        elif msg["type"] == "ai":
-            current_bot_msgs.append(msg["content"])
-        elif msg["type"] == "tool_call":
-            # Format tool call with special styling
-            tool_content = f"🛠️ **Tool Call:** {msg['content']}"
-            current_bot_msgs.append(tool_content)
-        elif msg["type"] == "tool_result":
-            # Format tool result with special styling
-            tool_content = f"📊 **Tool Result:** {msg['content']}"
-            current_bot_msgs.append(tool_content)
-        elif msg["type"] == "system":
-            # Format system messages with special styling
-            system_content = f"⚙️ **System:** {msg['content']}"
-            current_bot_msgs.append(system_content)
-    
-    # Add any remaining bot messages
-    if current_bot_msgs:
-        combined_bot_msg = "\n\n".join(current_bot_msgs)
-        formatted.append({"role": "assistant", "content": combined_bot_msg})
-    
-    return formatted
-
-
-async def process_user_query(query: str, history: List[Dict], thread_id: str):
-    """
-    Process user query through the agent and yield updated history
-    Yields: (response_text, updated_history)
-    """
-    # Add user message to history
-    history = history.copy() if history else []
-    history.append({"type": "user", "content": query})
-    
-    url = extract_url_from_query(query)
-    
-    # Create run in database
-    run_id = await db.create_run(url, description=query[:MAX_DESCRIPTION_LENGTH])
-    
-    if not run_id:
-        system_msg = "⚠️ Database unavailable, running agent only"
-        history.append({"type": "system", "content": system_msg})
-        yield format_message_history(history), history
-        return
-    
-    try:
-        # Create a new agent instance for each message
-        agent = get_agent()
-        
-        # Use the provided thread ID for conversation continuity
-        config = {"configurable": {"thread_id": thread_id}}
-        
-        # Stream agent responses
-        async for step in agent.astream(
-            {"messages": [HumanMessage(content=query)], "run_id": run_id},
-            config,
-            stream_mode="values"
-        ):
-            if "messages" in step and step["messages"]:
-                last_message = step["messages"][-1]
-                
-                # Handle different types of messages
-                if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                    # Handle tool calls
-                    for tool_call in last_message.tool_calls:
-                        tool_name = tool_call["name"]
-                        tool_args = tool_call.get("args", {})
-                        call_info = f"Tool: {tool_name}, Args: {tool_args}"
-                        history.append({"type": "tool_call", "content": call_info})
-                        
-                        # Record artifact
-                        await db.save_artifact(run_id, "tool_call", call_info, url, query, tool_name)
-                
-                elif hasattr(last_message, 'tool_call_id'):
-                    # Handle tool results
-                    result_content = getattr(last_message, 'content', str(last_message))
-                    history.append({"type": "tool_result", "content": result_content})
-                    
-                    # Record artifact
-                    await db.save_artifact(run_id, "tool_result", result_content, url, query)
-                
-                else:
-                    # Handle regular AI response
-                    content = getattr(last_message, 'content', '')
-                    if content:
-                        history.append({"type": "ai", "content": content})
-                        
-                        # Record artifact
-                        await db.save_artifact(run_id, "ai_response", content, url, query)
-                
-                # Yield updated history after each step
-                yield format_message_history(history), history
-        
-        # Update run status
-        await db.update_run_status(run_id, "completed")
-        yield format_message_history(history), history
-            
-    except Exception as e:
-        error_msg = f"❌ Error: {str(e)}"
-        history.append({"type": "system", "content": error_msg})
-        
-        # Update run status
-        await db.update_run_status(run_id, "error")
-        
-        yield format_message_history(history), history
-
+# 全局agent实例 - 保持对话记忆
+GLOBAL_AGENT = get_agent()
 
 def clear_history():
-    """Clear the chat history"""
-    # Reset thread ID when clearing history
-    if hasattr(respond, 'thread_id'):
-        respond.thread_id = str(uuid.uuid4())
-    return [], []
+    """清除聊天历史并重置thread_id"""
+    return [], [], str(uuid.uuid4())
 
-
-async def respond_stream_async(query, history):
-    """Async version of streaming response for better performance"""
+def respond_stream(query, history, thread_id):
+    """主要的对话处理函数 - 保持历史记录"""
     if not query.strip():
-        yield history, history
+        yield history, history, thread_id
         return
     
-    # Add user message to history
+    # 确保有thread_id
+    if not thread_id:
+        thread_id = str(uuid.uuid4())
+    
+    # 添加用户消息到历史记录
     history = history.copy() if history else []
     history.append({"role": "user", "content": query})
     
-    # Initialize assistant message
-    history.append({"role": "assistant", "content": "🤔 Thinking..."})
-    yield history, history
+    # 添加思考中的消息
+    history.append({"role": "assistant", "content": "🤔 思考中..."})
+    yield history, history, thread_id
     
     try:
-        # Get agent
-        agent = get_agent()
-        
-        # Simple config
-        config = {"configurable": {"thread_id": "simple_chat"}}
-        
-        # Track response components
-        response_parts = []
-        current_ai_content = ""
-        
-        # Stream the agent execution
-        async for step in agent.astream(
-            {"messages": [HumanMessage(content=query)]},
-            config,
-            stream_mode="values"
-        ):
-            if "messages" in step and step["messages"]:
-                last_message = step["messages"][-1]
-                
-                # Skip user messages (HumanMessage)
-                if hasattr(last_message, 'type') and last_message.type == 'human':
-                    continue
-                
-                # Handle tool calls
-                if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                    for tool_call in last_message.tool_calls:
-                        tool_name = tool_call["name"]
-                        tool_args = tool_call.get("args", {})
-                        tool_info = f"🛠️ **Tool Call:** {tool_name}"
-                        if tool_args:
-                            # Format args nicely
-                            args_str = ", ".join([f"{k}={v}" for k, v in tool_args.items()])
-                            tool_info += f"\n   Args: {args_str}"
-                        
-                        response_parts.append(tool_info)
-                        
-                        # Update display
-                        full_response = "\n\n".join(response_parts)
-                        if current_ai_content:
-                            full_response += f"\n\n🤖 **AI Response:**\n{current_ai_content}"
-                        
-                        history[-1]["content"] = full_response
-                        yield history, history
-                        await asyncio.sleep(0.1)  # Small delay for better UX
-                
-                # Handle tool results
-                elif hasattr(last_message, 'tool_call_id'):
-                    result_content = getattr(last_message, 'content', str(last_message))
-                    # Truncate very long results
-                    if len(result_content) > 500:
-                        result_content = result_content[:500] + "..."
-                    
-                    tool_result = f"📊 **Tool Result:**\n{result_content}"
-                    response_parts.append(tool_result)
-                    
-                    # Update display
-                    full_response = "\n\n".join(response_parts)
-                    if current_ai_content:
-                        full_response += f"\n\n🤖 **AI Response:**\n{current_ai_content}"
-                    
-                    history[-1]["content"] = full_response
-                    yield history, history
-                    await asyncio.sleep(0.1)  # Small delay for better UX
-                
-                # Handle AI responses
-                else:
-                    content = getattr(last_message, 'content', '')
-                    if content and content != query:  # Make sure it's not the user query
-                        current_ai_content = content
-                        
-                        # Update display
-                        full_response = "\n\n".join(response_parts)
-                        if current_ai_content:
-                            full_response += f"\n\n🤖 **AI Response:**\n{current_ai_content}"
-                        
-                        history[-1]["content"] = full_response
-                        yield history, history
-                        await asyncio.sleep(0.05)  # Smaller delay for AI responses
-        
-        # Final yield with complete response
-        if not response_parts and not current_ai_content:
-            history[-1]["content"] = "❌ Agent didn't return a response"
-        
-        yield history, history
-        
-    except Exception as e:
-        error_msg = f"❌ Error: {str(e)}"
-        history[-1]["content"] = error_msg
-        yield history, history
-
-def respond_stream(query, history):
-    """Process user query with streaming response"""
-    if not query.strip():
-        yield history, history
-        return
-    
-    # Add user message to history
-    history = history.copy() if history else []
-    history.append({"role": "user", "content": query})
-    
-    # Initialize assistant message with thinking indicator
-    history.append({"role": "assistant", "content": "🤔 Thinking..."})
-    yield history, history
-    
-    try:
-        # Get agent
-        agent = get_agent()
-        
-        # Simple config with unique thread ID for each conversation
-        thread_id = f"chat_{int(time.time())}"
+        # 使用全局agent实例保持对话记忆
         config = {"configurable": {"thread_id": thread_id}}
         
-        # Track response components
-        response_parts = []
-        current_ai_content = ""
-        step_count = 0
-        
-        # Stream the agent execution
-        for step in agent.stream(
+        # 流式处理agent响应
+        final_content = ""
+        for step in GLOBAL_AGENT.stream(
             {"messages": [HumanMessage(content=query)]},
             config,
             stream_mode="values"
         ):
-            step_count += 1
-            
             if "messages" in step and step["messages"]:
                 last_message = step["messages"][-1]
                 
-                # Skip user messages (HumanMessage)
+                # 跳过用户消息
                 if hasattr(last_message, 'type') and last_message.type == 'human':
                     continue
                 
-                # Handle tool calls
-                if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                    for tool_call in last_message.tool_calls:
-                        tool_name = tool_call["name"]
-                        tool_args = tool_call.get("args", {})
-                        
-                        # Create a more user-friendly tool display
-                        tool_display_names = {
-                            "scrape_url": "Web Scraping",
-                            "generate_requirements": "Generate Requirements",
-                            "generate_test_code": "Generate Test Code",
-                            "show_status": "Show Status",
-                            "search_experience": "Search Experience"
-                        }
-                        
-                        display_name = tool_display_names.get(tool_name, tool_name)
-                        tool_info = f"🛠️ **Executing:** {display_name}"
-                        
-                        if tool_args:
-                            # Format args nicely, but don't show all details
-                            if 'url' in tool_args:
-                                tool_info += f"\n   🌐 URL: {tool_args['url']}"
-                            elif 'query' in tool_args:
-                                tool_info += f"\n   🔍 Query: {tool_args['query']}"
-                        
-                        response_parts.append(tool_info)
-                        
-                        # Update display
-                        full_response = "\n\n".join(response_parts)
-                        if current_ai_content:
-                            full_response += f"\n\n🤖 **AI Analysis:**\n{current_ai_content}"
-                        
-                        history[-1]["content"] = full_response
-                        yield history, history
-                
-                # Handle tool results
-                elif hasattr(last_message, 'tool_call_id'):
-                    result_content = getattr(last_message, 'content', str(last_message))
-                    
-                    # Truncate very long results and make them more readable
-                    if len(result_content) > 800:
-                        result_content = result_content[:800] + "\n\n... (result truncated)"
-                    
-                    tool_result = f"✅ **Execution Complete**\n```\n{result_content}\n```"
-                    response_parts.append(tool_result)
-                    
-                    # Update display
-                    full_response = "\n\n".join(response_parts)
-                    if current_ai_content:
-                        full_response += f"\n\n🤖 **AI Analysis:**\n{current_ai_content}"
-                    
-                    history[-1]["content"] = full_response
-                    yield history, history
-                
-                # Handle AI responses
-                else:
-                    content = getattr(last_message, 'content', '')
-                    if content and content != query:  # Make sure it's not the user query
-                        current_ai_content = content
-                        
-                        # Update display
-                        full_response = "\n\n".join(response_parts)
-                        if current_ai_content:
-                            full_response += f"\n\n🤖 **AI Analysis:**\n{current_ai_content}"
-                        
-                        history[-1]["content"] = full_response
-                        yield history, history
+                # 获取AI响应内容
+                content = getattr(last_message, 'content', '')
+                if content and content != query:
+                    final_content = content
+                    history[-1]["content"] = content
+                    yield history, history, thread_id
         
-        # Final yield with complete response
-        if not response_parts and not current_ai_content:
-            history[-1]["content"] = "❌ Sorry, I didn't generate any response. Please try again or check your question."
+        # 如果没有响应，显示错误
+        if not final_content:
+            history[-1]["content"] = "❌ 没有收到响应，请重试"
         
-        # Add completion indicator
-        if history[-1]["content"] and not history[-1]["content"].endswith("✨"):
-            history[-1]["content"] += "\n\n✨ *Response Complete*"
-        
-        yield history, history
+        yield history, history, thread_id
         
     except Exception as e:
-        error_msg = f"❌ **Error Occurred:** {str(e)}\n\nPlease try again or contact support."
-        history[-1]["content"] = error_msg
-        yield history, history
+        history[-1]["content"] = f"❌ 错误: {str(e)}"
+        yield history, history, thread_id
 
 
 # Gradio UI setup
@@ -403,8 +86,9 @@ with gr.Blocks(
     gr.Markdown("# 🚀 Web Testing Agent")
     gr.Markdown("🤖 Intelligent agent with database storage and multi-turn conversation memory, supporting real-time streaming responses")
     
-    # Store chat history in state
+    # Store chat history and thread ID in state
     history_state = gr.State([])
+    thread_id_state = gr.State(str(uuid.uuid4()))
     
     # Chat display with streaming support
     chatbot = gr.Chatbot(
@@ -439,8 +123,8 @@ with gr.Blocks(
     # Event handlers with streaming support
     submit_btn.click(
         fn=respond_stream,
-        inputs=[user_input, history_state],
-        outputs=[chatbot, history_state],
+        inputs=[user_input, history_state, thread_id_state],
+        outputs=[chatbot, history_state, thread_id_state],
         show_progress="minimal"
     ).then(
         fn=lambda: "",  # Clear input after submission
@@ -451,14 +135,14 @@ with gr.Blocks(
     clear_btn.click(
         fn=clear_history,
         inputs=[],
-        outputs=[history_state, chatbot]
+        outputs=[history_state, chatbot, thread_id_state]
     )
     
     # Allow submitting with Enter key
     user_input.submit(
         fn=respond_stream,
-        inputs=[user_input, history_state],
-        outputs=[chatbot, history_state],
+        inputs=[user_input, history_state, thread_id_state],
+        outputs=[chatbot, history_state, thread_id_state],
         show_progress="minimal"
     ).then(
         fn=lambda: "",  # Clear input after submission
