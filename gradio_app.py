@@ -12,33 +12,35 @@ from langchain_core.messages import HumanMessage
 GLOBAL_AGENT = get_agent()
 
 def clear_history():
-    """清除聊天历史并重置thread_id"""
+    """Clear chat history and reset thread_id"""
     return [], [], str(uuid.uuid4())
 
 def respond_stream(query, history, thread_id):
-    """主要的对话处理函数 - 保持历史记录"""
+    """Main conversation handler with history persistence"""
     if not query.strip():
         yield history, history, thread_id
         return
     
-    # 确保有thread_id
+    # Ensure thread_id exists
     if not thread_id:
         thread_id = str(uuid.uuid4())
     
-    # 添加用户消息到历史记录
+    # Add user message to history
     history = history.copy() if history else []
     history.append({"role": "user", "content": query})
     
-    # 添加思考中的消息
-    history.append({"role": "assistant", "content": "🤔 思考中..."})
+    # Add thinking message
+    history.append({"role": "assistant", "content": "🤔 Thinking..."})
     yield history, history, thread_id
     
     try:
-        # 使用全局agent实例保持对话记忆
+        # Use global agent instance to maintain conversation memory
         config = {"configurable": {"thread_id": thread_id}}
         
-        # 流式处理agent响应
-        final_content = ""
+        # Collect reasoning steps
+        reasoning_steps = []
+        
+        # Stream agent responses
         for step in GLOBAL_AGENT.stream(
             {"messages": [HumanMessage(content=query)]},
             config,
@@ -47,25 +49,70 @@ def respond_stream(query, history, thread_id):
             if "messages" in step and step["messages"]:
                 last_message = step["messages"][-1]
                 
-                # 跳过用户消息
+                # Skip user messages
                 if hasattr(last_message, 'type') and last_message.type == 'human':
                     continue
                 
-                # 获取AI响应内容
-                content = getattr(last_message, 'content', '')
-                if content and content != query:
-                    final_content = content
-                    history[-1]["content"] = content
+                # Handle tool calls
+                if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+                    for tool_call in last_message.tool_calls:
+                        tool_name = tool_call["name"]
+                        tool_args = tool_call.get("args", {})
+                        
+                        # Format tool call info
+                        tool_info = f"**{tool_name}**"
+                        if 'url' in tool_args:
+                            tool_info += f"\nURL: `{tool_args['url']}`"
+                        elif 'query' in tool_args:
+                            tool_info += f"\nQuery: `{tool_args['query']}`"
+                        elif 'format_type' in tool_args:
+                            tool_info += f"\nFormat: `{tool_args['format_type']}`"
+                        
+                        reasoning_steps.append(f"---\n\n🔧 **Executing**: {tool_info}")
+                        
+                        # Update display
+                        full_content = "\n\n".join(reasoning_steps)
+                        history[-1]["content"] = full_content
+                        yield history, history, thread_id
+                
+                # Handle tool results
+                elif hasattr(last_message, 'tool_call_id'):
+                    result_content = getattr(last_message, 'content', str(last_message))
+                    
+                    # Truncate long results
+                    if len(result_content) > 500:
+                        result_content = result_content[:500] + "\n\n... (result truncated)"
+                    
+                    reasoning_steps.append(f"✅ **Result**:\n```\n{result_content}\n```")
+                    
+                    # Update display
+                    full_content = "\n\n".join(reasoning_steps)
+                    history[-1]["content"] = full_content
                     yield history, history, thread_id
+                
+                # Handle AI reasoning and final response
+                else:
+                    content = getattr(last_message, 'content', '')
+                    if content and content != query:
+                        reasoning_steps.append(f"---\n\n🤖 **Analysis**:\n{content}")
+                        
+                        # Update display
+                        full_content = "\n\n".join(reasoning_steps)
+                        history[-1]["content"] = full_content
+                        yield history, history, thread_id
         
-        # 如果没有响应，显示错误
-        if not final_content:
-            history[-1]["content"] = "❌ 没有收到响应，请重试"
+        # If no steps, show error
+        if not reasoning_steps:
+            history[-1]["content"] = "❌ No response received, please retry"
+        else:
+            # Add completion indicator
+            final_content = "\n\n".join(reasoning_steps) + "\n\n---\n\n✨ **Complete**"
+            history[-1]["content"] = final_content
         
         yield history, history, thread_id
         
     except Exception as e:
-        history[-1]["content"] = f"❌ 错误: {str(e)}"
+        history[-1]["content"] = f"❌ Error: {str(e)}"
         yield history, history, thread_id
 
 
