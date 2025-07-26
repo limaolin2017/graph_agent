@@ -413,7 +413,7 @@ with gr.Blocks(
         height=600,
         type='messages',
         show_copy_button=True,
-        avatar_images=("👤", "🤖")
+        avatar_images=("User", "AI")
     )
     
     with gr.Row():
