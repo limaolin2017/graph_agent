@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: web_testing_postgres
+    environment:
+      POSTGRES_DB: web_testing
+      POSTGRES_USER: maolin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maolin -d web_testing"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - web_testing_network
+
+  # Web Testing Agent
+  agent:
+    build: .
+    container_name: web_testing_agent
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY}
+      - DATABASE_URL=postgresql://maolin:password123@postgres:5432/web_testing
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-false}
+      - GRADIO_SERVER_PORT=7861
+    ports:
+      - "7861:7861"
+    volumes:
+      # 
+      - .:/app
+      #
+      - python_cache:/home/appuser/.cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - web_testing_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7861/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: web_testing_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - web_testing_network
+    profiles:
+      - admin
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  python_cache:
+    driver: local
+
+networks:
+  web_testing_network:
+    driver: bridge
