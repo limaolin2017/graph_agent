@@ -1,17 +1,25 @@
 # Evaluation Roadmap
 
-## Current State
-Basic custom evaluator measures percentage of requested steps completed by checking successfully called tools against required steps.
+## Current State ✅
+**Implemented Evaluators:**
+1. **Workflow Completion Evaluator** - Measures if full web testing pipeline (scraping → requirements → tests) was completed
+2. **Content Consistency Evaluator** - Assesses whether generated artifacts accurately reflect actual webpage content
+3. **Basic Performance Metrics** - Tracks step completion, tool calls, success rates
 
-## Short-term Goals
-1. **LangSmith Tracing** - Add tracing for agent execution
-2. **Quality Metrics** - Assess generated test code quality
-3. **Performance Evaluator** - Measure execution time and resource usage
+## Recently Completed ✅
+1. **LangSmith Integration** - Full tracing for agent execution
+2. **Anti-Hallucination Detection** - Identifies invented features not present in scraped content
+3. **Quality Assessment Pipeline** - Multi-dimensional evaluation framework
 
-## Medium-term Goals
-1. **Tool-specific Evaluators** - Create evaluators for all core tools
-2. **Intent Alignment** - Check agent actions align with user intent
-3. **Error Handling** - Evaluate error handling and recovery capabilities
+## Short-term Goals (Next 2-4 weeks)
+1. **Requirements Accuracy Evaluator** ⏳ - Detailed analysis of requirement quality vs actual page content
+2. **Test Code Executability Checker** ⏳ - Validates generated test scenarios can actually run
+3. **Performance Benchmarking** ⏳ - Response time and resource usage optimization
+
+## Medium-term Goals (1-3 months)
+1. **Completeness Scoring System** - Measures coverage of important page elements
+2. **Multi-turn Context Evaluator** - Assesses context maintenance across interactions
+3. **Comparative A/B Testing** - Framework for evaluating different agent versions
 
 ## Long-term Goals
 1. **Comparative Evaluation** - A/B testing framework for agent versions
@@ -25,12 +33,46 @@ Basic custom evaluator measures percentage of requested steps completed by check
 4. Tool-specific Evaluators
 5. User Experience Metrics
 
+## Evaluator Specifications
+
+### 1. Workflow Completion Evaluator
+**Purpose:** Validates complete web testing pipeline execution
+**Criteria:**
+- ✅ Web scraping step completed successfully
+- ✅ Functional requirements generated
+- ✅ Test code produced in requested format
+**Scoring:** 0-100 based on completion percentage and step quality
+
+### 2. Content Consistency Evaluator  
+**Purpose:** Prevents hallucination and ensures accuracy
+**Criteria:**
+- Requirements only describe features actually present on page
+- Test scenarios target real UI elements and interactions
+- No invented features or generic assumptions
+**Scoring:** 0-100 based on factual accuracy vs scraped content
+
+### 3. Requirements Accuracy Evaluator (Planned)
+**Purpose:** Deep analysis of requirement quality
+**Criteria:**
+- Completeness: All important page elements captured
+- Specificity: Requirements are detailed and actionable
+- Relevance: Focus on testable functionality
+**Scoring:** Multi-dimensional assessment with weighted components
+
+### 4. Test Code Executability Checker (Planned)
+**Purpose:** Validates practical utility of generated tests
+**Criteria:**
+- Syntax correctness for target framework (Gherkin/Cypress)
+- Realistic user interaction flows
+- Proper element selectors and assertions
+**Scoring:** Binary pass/fail with detailed feedback
+
 ## Success Metrics
-- 95%+ step completion accuracy
-- 90%+ test code quality score
+- 95%+ workflow completion rate
+- 90%+ content consistency score
+- 85%+ requirements accuracy rating
 - Sub-10s average response time
-- 99%+ uptime
-- Positive user feedback
+- 99%+ test code executability
 
 ## Resource Requirements
 - LangSmith account

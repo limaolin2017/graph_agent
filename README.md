@@ -15,7 +15,7 @@ Modern ReAct intelligent agent built with LangGraph, focused on web testing auto
 
 ## ✨ Core Features
 
-### 🧰 Five Core Tools
+### 🧰 Six Core Tools
 
 1. **🌐 scrape_url()** - Web Scraping
    - Extract HTML content from specified URLs
@@ -41,6 +41,11 @@ Modern ReAct intelligent agent built with LangGraph, focused on web testing auto
    - Performs semantic search on past test cases using PGVector
    - Utilizes previous work to avoid repetition
    - RAG-driven knowledge retrieval
+
+6. **🔎 search_artifacts()** - Specific Content Search
+   - Searches for functional requirements and test code
+   - Leverages key page elements for artifact discovery
+   - Ensures relevant templates and scenarios are found
 
 ### 🌐 Dual Interface Support
 
@@ -225,12 +230,13 @@ docker exec -it web_testing_agent bash
 │                              │  └────────────────────────┘  │     │
 │                              │                              │     │
 │                              │  ┌────────────────────────┐  │     │
-│  ┌─────────────────┐         │  │      Five Tools       │  │     │
-│  │  External APIs  │◀────────│  │ • scrape_url         │  │     │
+│  ┌─────────────────┐         │  │       Six Tools        │  │     │
+│  │  External APIs  │◀────────│  │ • scrape_url          │  │     │
 │  │  (Firecrawl)    │         │  │ • generate_requirements│  │     │
-│  └─────────────────┘         │  │ • generate_test_code │  │     │
-│                              │  │ • show_status        │  │     │
-│                              │  │ • search_experience  │  │     │
+│  └─────────────────┘         │  │ • generate_test_code  │  │     │
+│                              │  │ • show_status         │  │     │
+│                              │  │ • search_experience   │  │     │
+│                              │  │ • search_artifacts    │  │     │
 │                              │  └────────────────────────┘  │     │
 │                              └──────────────────────────────┘     │
 │                                           │                        │
@@ -457,13 +463,25 @@ CREATE TABLE artifacts (
 
 ### Evaluation Metrics
 
-The system tracks the following evaluation metrics through the `show_status()` tool:
+The system tracks comprehensive evaluation metrics through the `show_status()` tool:
 
+#### Core Performance Metrics
 1. **step_completed** - Number of successfully completed workflow steps
 2. **tool_calls** - Total number of tool invocations
 3. **success_rate** - Percentage of successful operations
 4. **execution_time** - Time taken for each operation
 5. **error_count** - Number of errors encountered
+
+#### Quality Assessment Evaluators
+6. **workflow_completion** - Evaluates if full web testing pipeline was completed (scraping → requirements → tests)
+7. **content_consistency** - Assesses whether generated artifacts accurately reflect actual webpage content
+8. **requirements_accuracy** - Measures how well requirements capture real page features
+9. **test_code_quality** - Evaluates generated test scenarios for executability and coverage
+
+#### Advanced Evaluation Features
+- **Anti-Hallucination Detection**: Identifies invented features not present in scraped content
+- **Completeness Scoring**: Measures coverage of important page elements
+- **Practical Utility Assessment**: Evaluates if outputs are actionable for real testing
 
 Metrics are fetched from LangSmith evaluator runs and displayed in real-time during agent execution.
 
