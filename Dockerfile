@@ -18,6 +18,9 @@ COPY requirements.txt .
 # install python dep
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy source code
+COPY . .
+
 # non-root
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
