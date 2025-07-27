@@ -3,6 +3,7 @@ langchain
 langchain-openai
 langchain-postgres  
 langgraph
+langsmith
 
 
 langgraph-checkpoint-postgres  
