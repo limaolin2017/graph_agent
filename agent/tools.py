@@ -9,7 +9,7 @@ import os
 def scrape_url(url: str) -> str:
     """Scrape web page content"""
     result = scrape_with_firecrawl(url)
-    return f"✅ Scraped {url}\n\n{result}" if result else f"❌ Failed to scrape {url}"
+    return f"✅ Scraped {url}\n\n{result}" if result else f"❌ Error: Failed to scrape {url}"
 
 
 @tool
@@ -29,7 +29,7 @@ def show_status(metric_name: str = None) -> str:
     """Display latest evaluation metrics from LangSmith evaluators project."""
     ls_api_key = os.getenv("LANGSMITH_API_KEY")
     if not ls_api_key:
-        return "❌ LANGSMITH_API_KEY not found in environment variables."
+        return "❌ Error: LANGSMITH_API_KEY not found in environment variables."
     
     try:
         client = Client(api_key=ls_api_key)
@@ -38,53 +38,56 @@ def show_status(metric_name: str = None) -> str:
         if not runs:
             return "No runs found in 'evaluators' project."
         
-        # Find runs with numeric outputs (potential metrics)
+        # Find first run with numeric outputs
         for run in runs:
             if not run.outputs:
                 continue
                 
-            # Extract numeric outputs as potential metrics
             metrics = {k: v for k, v in run.outputs.items() if isinstance(v, (int, float))}
+            if not metrics:
+                continue
             
-            if metrics:
-                # Build response
-                lines = [
-                    f"📊 Latest Evaluation Results (Run ID: {run.id}):",
-                    f"Run Name: {run.name}",
-                    f"Run Type: {run.run_type}",
-                    f"Start Time: {run.start_time}",
-                    "\nMetrics:"
-                ]
-                
-                if metric_name:
-                    # Search for specific metric
-                    matching_metrics = {k: v for k, v in metrics.items() 
-                                      if metric_name.lower() in k.lower()}
-                    if matching_metrics:
-                        for key, value in matching_metrics.items():
-                            lines.append(f"- {key}: {value}")
-                    else:
-                        return f"Metric '{metric_name}' not found. Available: {list(metrics.keys())}"
-                else:
-                    # Show all metrics
-                    for key, value in metrics.items():
-                        lines.append(f"- {key}: {value}")
-                
-                # Check for feedback
-                feedback = list(client.list_feedback(run_ids=[run.id]))
-                if feedback:
-                    lines.append("\nFeedback:")
-                    for fb in feedback:
-                        lines.append(f"- {fb.key}: {fb.score}")
-                        if fb.comment:
-                            lines.append(f"  Comment: {fb.comment}")
-                
-                return "\n".join(lines)
+            # Build response header
+            lines = [_format_run_header(run), "\nMetrics:"]
+            
+            # Add metrics
+            if metric_name:
+                matching = {k: v for k, v in metrics.items() if metric_name.lower() in k.lower()}
+                if not matching:
+                    return f"Metric '{metric_name}' not found. Available: {list(metrics.keys())}"
+                metrics = matching
+            
+            lines.extend(f"- {k}: {v}" for k, v in metrics.items())
+            
+            # Add feedback if available
+            feedback = list(client.list_feedback(run_ids=[run.id]))
+            if feedback:
+                lines.extend(_format_feedback(feedback))
+            
+            return "\n".join(lines)
         
         return "No evaluation metrics found in recent runs."
         
     except Exception as e:
         return f"❌ Error accessing LangSmith: {str(e)}"
+
+
+def _format_run_header(run) -> str:
+    """Format run information header"""
+    return f"""📊 Latest Evaluation Results (Run ID: {run.id}):
+Run Name: {run.name}
+Run Type: {run.run_type}
+Start Time: {run.start_time}"""
+
+
+def _format_feedback(feedback_list) -> list:
+    """Format feedback entries"""
+    lines = ["\nFeedback:"]
+    for fb in feedback_list:
+        lines.append(f"- {fb.key}: {fb.score}")
+        if fb.comment:
+            lines.append(f"  Comment: {fb.comment}")
+    return lines
 
 
 @tool

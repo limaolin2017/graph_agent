@@ -32,10 +32,10 @@ Modern ReAct intelligent agent built with LangGraph, focused on web testing auto
    - Supports Gherkin and JavaScript formats
    - Includes common UI interaction patterns
 
-4. **📊 show_status()** - Status and Metrics Display
-   - Displays current workflow progress
-   - Shows processing metrics and results
-   - Can be called at any time during execution
+4. **📊 show_status()** - Evaluation Metrics Display
+   - Fetches latest evaluation metrics from LangSmith
+   - Displays metrics like step_completed from evaluator runs
+   - Supports querying specific metrics by name
 
 5. **🔍 search_experience()** - Historical Experience Search
    - Performs semantic search on past test cases using PGVector
@@ -200,8 +200,6 @@ docker exec -it web_testing_agent bash
 ├── tests/                 # Test module
 │   ├── simple_test.py     # Basic functionality test
 │   └── test_db.py         # Database and semantic search test
-├── evaluators/            # Evaluators
-│   └── steps_completed.py # Step completion evaluation
 └── README.md              # Project documentation
 ```
 

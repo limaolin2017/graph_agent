@@ -3,7 +3,6 @@ Database module - PostgreSQL + PGVector for web testing automation
 """
 
 import os
-import time
 import hashlib
 import psycopg
 import uuid

@@ -18,7 +18,7 @@ from agent import get_agent
 from database import init_database, db
 from config import setup_environment
 
-# Global constants
+# Constants
 AGENT = get_agent()
 URL_PATTERN = r'https?://[^\s]+'
 DEFAULT_URL = "unknown"

@@ -15,7 +15,6 @@ from config import setup_environment
 URL_PATTERN = r'https?://[^\s]+'
 DEFAULT_URL = "unknown"
 MAX_DESCRIPTION_LENGTH = 100
-SEPARATOR_LINE = "=" * 50
 
 def extract_url_from_query(query: str) -> str:
     """Extract URL from query string"""
@@ -140,7 +139,7 @@ async def main():
     await db.connect()
 
     print("🚀 Web Testing Agent")
-    print(SEPARATOR_LINE)
+    print("=" * 50)
 
     try:
         await _interactive_mode()

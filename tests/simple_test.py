@@ -1,81 +1,81 @@
 #!/usr/bin/env python3
 """
-简单的独立测试脚本 - 测试重构后的项目功能
+Simple standalone test script - tests refactored project functionality
 """
 
 import requests
 import os
 
 def test_basic_scraping():
-    """测试基础的网页抓取功能"""
-    print("🧪 测试基础网页抓取功能")
+    """Test basic web scraping functionality"""
+    print("🧪 Testing basic web scraping functionality")
     print("=" * 50)
     
-    # 测试抓取一个简单页面
+    # Test scraping a simple page
     test_url = "https://example.com"
     
     try:
-        print(f"📡 正在抓取: {test_url}")
+        print(f"📡 Scraping: {test_url}")
         response = requests.get(test_url, timeout=10)
         
         if response.status_code == 200:
             content = response.text
-            print(f"✅ 抓取成功! 状态码: {response.status_code}")
-            print(f"📄 内容长度: {len(content)} 字符")
-            print(f"🔍 内容预览:")
+            print(f"✅ Scraping successful! Status code: {response.status_code}")
+            print(f"📄 Content length: {len(content)} characters")
+            print(f"🔍 Content preview:")
             print("-" * 30)
             print(content[:300] + "..." if len(content) > 300 else content)
             print("-" * 30)
             return True
         else:
-            print(f"❌ 抓取失败! 状态码: {response.status_code}")
+            print(f"❌ Scraping failed! Status code: {response.status_code}")
             return False
             
     except Exception as e:
-        print(f"❌ 抓取过程中出现错误: {e}")
+        print(f"❌ Error during scraping: {e}")
         return False
 
 def test_form_page():
-    """测试表单页面抓取"""
-    print("\n🧪 测试表单页面抓取")
+    """Test form page scraping"""
+    print("\n🧪 Testing form page scraping")
     print("=" * 50)
     
     test_url = "https://www.google.com"
     
     try:
-        print(f"📡 正在抓取表单页面: {test_url}")
+        print(f"📡 Scraping form page: {test_url}")
         response = requests.get(test_url, timeout=10)
         
         if response.status_code == 200:
             content = response.text
-            print(f"✅ 表单页面抓取成功!")
+            print(f"✅ Form page scraping successful!")
             
-            # 分析表单元素
+            # Analyze form elements
             form_elements = []
             if '<input' in content:
-                form_elements.append("文本输入框")
+                form_elements.append("text input")
             if 'type="radio"' in content:
-                form_elements.append("单选按钮")
+                form_elements.append("radio button")
             if 'type="checkbox"' in content:
-                form_elements.append("复选框")
+                form_elements.append("checkbox")
             if '<textarea' in content:
-                form_elements.append("文本区域")
+                form_elements.append("textarea")
             if '<button' in content:
-                form_elements.append("按钮")
+                form_elements.append("button")
                 
-            print(f"🔍 发现的表单元素: {', '.join(form_elements)}")
+            print(f"🔍 Found form elements: {form_elements}")
             return True
         else:
-            print(f"❌ 表单页面抓取失败! 状态码: {response.status_code}")
+            print(f"❌ Form page scraping failed! Status code: {response.status_code}")
             return False
             
     except Exception as e:
-        print(f"❌ 表单页面抓取过程中出现错误: {e}")
+        print(f"❌ Error during form page scraping: {e}")
         return False
 
 def test_project_structure():
-    """测试项目结构"""
-    print("\n🧪 测试项目结构")
+    """Test project structure"""
+    print("\n🧪 Testing project structure")
     print("=" * 50)
     
     expected_dirs = ["agent", "database", "tests"]
@@ -83,64 +83,64 @@ def test_project_structure():
     
     all_good = True
     
-    # 检查目录
+    # Check directories
     for dir_name in expected_dirs:
         if os.path.exists(dir_name) and os.path.isdir(dir_name):
-            print(f"✅ 目录存在: {dir_name}/")
+            print(f"✅ Directory exists: {dir_name}/")
             
-            # 检查__init__.py
+            # Check __init__.py
             init_file = os.path.join(dir_name, "__init__.py")
             if os.path.exists(init_file):
-                print(f"  ✅ {dir_name}/__init__.py 存在")
+                print(f"  ✅ {dir_name}/__init__.py exists")
             else:
-                print(f"  ❌ {dir_name}/__init__.py 缺失")
+                print(f"  ❌ {dir_name}/__init__.py is missing")
                 all_good = False
         else:
-            print(f"❌ 目录缺失: {dir_name}/")
+            print(f"❌ Directory is missing: {dir_name}/")
             all_good = False
     
-    # 检查文件
+    # Check files
     for file_name in expected_files:
         if os.path.exists(file_name) and os.path.isfile(file_name):
-            print(f"✅ 文件存在: {file_name}")
+            print(f"✅ File exists: {file_name}")
         else:
-            print(f"❌ 文件缺失: {file_name}")
+            print(f"❌ File is missing: {file_name}")
             all_good = False
     
     return all_good
 
 def main():
-    """主测试函数"""
-    print("🚀 开始重构项目测试")
+    """Main test function"""
+    print("🚀 Starting refactored project test")
     print("=" * 60)
     
     results = []
     
-    # 运行各项测试
-    results.append(("项目结构", test_project_structure()))
-    results.append(("基础抓取", test_basic_scraping()))
-    results.append(("表单页面", test_form_page()))
+    # Run tests
+    results.append(("Project Structure", test_project_structure()))
+    results.append(("Basic Scraping", test_basic_scraping()))
+    results.append(("Form Page", test_form_page()))
     
-    # 总结结果
-    print("\n📊 测试结果总结")
+    # Summarize results
+    print("\n📊 Test results summary")
     print("=" * 60)
     
     passed = 0
     total = len(results)
     
     for test_name, result in results:
-        status = "✅ 通过" if result else "❌ 失败"
-        print(f"{test_name:15s} : {status}")
+        status = "✅ Passed" if result else "❌ Failed"
+        print(f"{test_name:20s} : {status}")
         if result:
             passed += 1
     
     print("-" * 60)
-    print(f"总计: {passed}/{total} 项测试通过")
+    print(f"Total: {passed}/{total} tests passed")
     
     if passed == total:
-        print("🎉 所有测试都通过了！重构项目运行正常。")
+        print("🎉 All tests passed! Refactored project is running correctly.")
     else:
-        print("⚠️ 部分测试失败，请检查项目配置。")
+        print("⚠️ Some tests failed, please check the project configuration.")
     
     return passed == total
 

@@ -24,43 +24,40 @@ def scrape_with_firecrawl(url: str) -> Optional[str]:
     except:
         return None
 
-def _generate_scenario_login(requirement: str) -> str:
-    """Generate a login scenario"""
-    return f"""
+# Gherkin scenario templates
+GHERKIN_TEMPLATES = {
+    'login': """
 Scenario: {requirement}
   Given I am on the login page
   When I enter valid credentials
   And I click the login button
   Then I should be logged in successfully
-"""
-
-def _generate_scenario_form(requirement: str) -> str:
-    """Generate a form scenario"""
-    return f"""
+""",
+    'form': """
 Scenario: {requirement}
   Given I am on the form page
   When I fill in all required fields
   And I submit the form
   Then I should see a success message
-"""
-
-def _generate_scenario_navigation(requirement: str) -> str:
-    """Generate a navigation scenario"""
-    return f"""
+""",
+    'navigation': """
 Scenario: {requirement}
   Given I am on the homepage
   When I click on navigation links
   Then I should navigate to the correct pages
-"""
-
-def _generate_scenario_default(requirement: str) -> str:
-    """Generate a default scenario"""
-    return f"""
+""",
+    'default': """
 Scenario: {requirement}
   Given I am on the page
   When I interact with the element
   Then I should see the expected behavior
 """
+}
+
+def _generate_scenario(requirement: str, template_type: str) -> str:
+    """Generate a scenario based on template type"""
+    template = GHERKIN_TEMPLATES.get(template_type, GHERKIN_TEMPLATES['default'])
+    return template.format(requirement=requirement)
 
 
 def generate_gherkin_tests(requirements: str) -> str:
@@ -70,55 +67,54 @@ def generate_gherkin_tests(requirements: str) -> str:
     
     scenarios = []
     for req in lines:
-        template_func = next(
-            (func for name, func in [('login', _generate_scenario_login), ('form', _generate_scenario_form), ('navigation', _generate_scenario_navigation)] if name in req.lower()),
-            _generate_scenario_default
-        )
-        scenarios.append(template_func(req))
+        # Determine template type based on requirement content
+        template_type = 'default'
+        for keyword in ['login', 'form', 'navigation']:
+            if keyword in req.lower():
+                template_type = keyword
+                break
+        scenarios.append(_generate_scenario(req, template_type))
     
     return "Feature: Web Page Testing\n" + "\n".join(scenarios)
 
-def _generate_cypress_login(req: str) -> str:
-    """Generate a login test case"""
-    return f"""
-  it('{req}', () => {{
+# Cypress test templates
+CYPRESS_TEMPLATES = {
+    'login': """
+  it('{requirement}', () => {{
     cy.visit('/login');
     cy.get('[data-cy="username"]').type('testuser');
     cy.get('[data-cy="password"]').type('password123');
     cy.get('[data-cy="login-button"]').click();
     cy.url().should('include', '/dashboard');
-  }});"""
-
-def _generate_cypress_form(req: str) -> str:
-    """Generate a form test case"""
-    return f"""
-  it('{req}', () => {{
+  }});""",
+    'form': """
+  it('{requirement}', () => {{
     cy.visit('/form');
     cy.get('input[type="text"]').first().type('Test Data');
     cy.get('button[type="submit"]').click();
     cy.contains('Success').should('be.visible');
-  }});"""
-
-def _generate_cypress_navigation(req: str) -> str:
-    """Generate a navigation test case"""
-    return f"""
-  it('{req}', () => {{
+  }});""",
+    'navigation': """
+  it('{requirement}', () => {{
     cy.visit('/');
     cy.get('nav a').each(($link) => {{
       cy.wrap($link).click();
       cy.url().should('not.equal', 'about:blank');
       cy.go('back');
     }});
-  }});"""
-
-def _generate_cypress_default(req: str) -> str:
-    """Generate a default test case"""
-    return f"""
-  it('{req}', () => {{
+  }});""",
+    'default': """
+  it('{requirement}', () => {{
     cy.visit('/');
     cy.get('body').should('be.visible');
-    // Add specific test steps for: {req}
+    // Add specific test steps for: {requirement}
   }});"""
+}
+
+def _generate_cypress_test(requirement: str, template_type: str) -> str:
+    """Generate a Cypress test based on template type"""
+    template = CYPRESS_TEMPLATES.get(template_type, CYPRESS_TEMPLATES['default'])
+    return template.format(requirement=requirement)
 
 
 def generate_cypress_js_tests(requirements: str) -> str:
@@ -128,11 +124,13 @@ def generate_cypress_js_tests(requirements: str) -> str:
     
     test_cases = []
     for req in lines:
-        template_func = next(
-            (func for name, func in [('login', _generate_cypress_login), ('form', _generate_cypress_form), ('navigation', _generate_cypress_navigation)] if name in req.lower()),
-            _generate_cypress_default
-        )
-        test_cases.append(template_func(req))
+        # Determine template type based on requirement content
+        template_type = 'default'
+        for keyword in ['login', 'form', 'navigation']:
+            if keyword in req.lower():
+                template_type = keyword
+                break
+        test_cases.append(_generate_cypress_test(req, template_type))
     
     return f"describe('Web Page Tests', () => {{\n{''.join(test_cases)}\n}});"
 
