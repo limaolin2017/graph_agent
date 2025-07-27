@@ -183,3 +183,21 @@ def format_summary_for_storage(summary_dict: Dict[str, str]) -> str:
     if result and str(result).strip():
         summary += f"\nRESULT: {result}"
     return summary
+
+
+def format_run_header(run) -> str:
+    """Format run information header"""
+    return f"""📊 Latest Evaluation Results (Run ID: {run.id}):
+Run Name: {run.name}
+Run Type: {run.run_type}
+Start Time: {run.start_time}"""
+
+
+def format_feedback(feedback_list) -> list:
+    """Format feedback entries"""
+    lines = ["\nFeedback:"]
+    for fb in feedback_list:
+        lines.append(f"- {fb.key}: {fb.score}")
+        if fb.comment:
+            lines.append(f"  Comment: {fb.comment}")
+    return lines

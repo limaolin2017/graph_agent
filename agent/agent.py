@@ -7,7 +7,7 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_openai import ChatOpenAI
 from config import MODEL_CONFIG
-from agent.tools import scrape_url, generate_requirements, generate_test_code, show_status, search_experience
+from agent.tools import scrape_url, generate_requirements, generate_test_code, show_status, search_experience, search_artifacts
 from agent.prompt import AGENT_SYSTEM_PROMPT
 from agent.state import AgentState
 
@@ -19,7 +19,7 @@ def get_agent(checkpointer=None):
 
     return create_react_agent(
         model=model,
-        tools=[scrape_url, generate_requirements, generate_test_code, show_status, search_experience],
+        tools=[scrape_url, generate_requirements, generate_test_code, show_status, search_experience, search_artifacts],
         prompt=AGENT_SYSTEM_PROMPT,
         checkpointer=checkpointer,
         state_schema=AgentState
