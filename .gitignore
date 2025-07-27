@@ -58,5 +58,4 @@ logs/
 # Debug files
 debug_*.py
 quick_test.py
-test_*.py
 .gradio
