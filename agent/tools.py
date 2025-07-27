@@ -1,7 +1,7 @@
 from langchain_core.tools import tool
 from langsmith import Client
 from .utils import scrape_with_firecrawl, generate_gherkin_tests, generate_cypress_js_tests, format_run_header, format_feedback
-from database import search_artifacts_advanced
+from database import search_artifacts_advanced, search_experience_advanced
 import os
 
 
@@ -110,24 +110,18 @@ def show_status(metric_name: str = None) -> str:
 @tool
 def search_experience(query: str) -> str:
     """Search historical testing experiences and workflow patterns"""
-    # Only search tool execution record type artifacts
-    results = search_artifacts_advanced(query, k=5)
+    # Use dedicated function to search only tool execution records
+    results = search_experience_advanced(query, k=5)
     if not results:
         return f"🔍 No experience found for '{query}'"
     
-    # Filter out tool execution records
+    # Filter by distance and format results
     experience_results = []
     for result in results:
         distance = result.get('metadata', {}).get('distance', 0)
         if distance > 0.8:
             continue
-        
-        artifact_type = result.get('metadata', {}).get('type', '')
-        summary = result.get('summary', '')
-        
-        # Only include tool execution records
-        if artifact_type in ['tool_call', 'tool_result'] or 'ACTION:' in summary:
-            experience_results.append(result)
+        experience_results.append(result)
     
     if not experience_results:
         return f"🔍 No testing experience found for '{query}'"
@@ -166,14 +160,6 @@ def search_artifacts(query: str) -> str:
             continue
             
         content = result.get('content', '')
-        artifact_type = result.get('metadata', {}).get('type', '')
-        
-        # Exclude tool execution records, but keep scraped content
-        if artifact_type in ['tool_call', 'tool_result']:
-            summary = result.get('summary', '')
-            # Keep scraped content (tool_result with ✅ Scraped) but exclude other tool records
-            if 'ACTION:' in summary and not content.startswith('✅ Scraped'):
-                continue
         
         # Check if it's requirements content
         if ('functional requirements' in content.lower() or 

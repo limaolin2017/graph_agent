@@ -116,9 +116,10 @@ def search_artifacts_advanced(query: str, k: int = 5, filters: Optional[Dict[str
         with psycopg.connect(CONN_STR) as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT id, run_id, type, text, summary, timestamp, url,
+SELECT id, run_id, type, text, summary, timestamp, url,
                            embedding <=> %s::vector as distance
                     FROM artifacts
+                    WHERE type NOT IN ('tool_call', 'tool_result')  -- Exclude tool execution records
                     ORDER BY embedding <=> %s::vector
                     LIMIT %s
                 """, (query_vector, query_vector, k))
@@ -139,6 +140,40 @@ def search_artifacts_advanced(query: str, k: int = 5, filters: Optional[Dict[str
                 return results
     except Exception as e:
         print(f"❌ Search failed: {repr(e)}")
+        return []
+
+def search_experience_advanced(query: str, k: int = 5) -> List[dict]:
+    """Search only tool execution records for experience lookup"""
+    try:
+        query_vector = get_embeddings().embed_query(query)
+        
+        with psycopg.connect(CONN_STR) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+SELECT id, run_id, type, text, summary, timestamp, url,
+                           embedding <=> %s::vector as distance
+                    FROM artifacts
+                    WHERE type IN ('tool_call', 'tool_result')  -- Only include tool execution records
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                """, (query_vector, query_vector, k))
+
+                results = []
+                for row in cur.fetchall():
+                    results.append({
+                        "content": row[3],
+                        "metadata": {
+                            "doc_id": row[0], "run_id": row[1], "type": row[2],
+                            "summary": row[4], "timestamp": row[5], "url": row[6],
+                            "distance": float(row[7])
+                        },
+                        "summary": row[4] or row[3][:200],
+                        "doc_id": row[0],
+                        "timestamp": str(row[5]) if row[5] else ""
+                    })
+                return results
+    except Exception as e:
+        print(f"❌ Experience search failed: {repr(e)}")
         return []
 
 def get_content_by_id(doc_id: str) -> Optional[str]:
