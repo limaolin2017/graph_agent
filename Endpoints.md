@@ -27,7 +27,7 @@ curl -X POST "http://localhost:7861/gradio_api/queue/join" \
   -H "Content-Type: application/json" \
   -d '{
     "fn_index": 0,
-    "data": ["请帮我测试这个网址：https://example.com", null, null],
+    "data": ["help me test：https://example.com", null, null],
     "session_hash": "unique_session_123"
   }'
 ```
