@@ -11,12 +11,12 @@
 2. **Anti-Hallucination Detection** - Identifies invented features not present in scraped content
 3. **Quality Assessment Pipeline** - Multi-dimensional evaluation framework
 
-## Short-term Goals (Next 2-4 weeks)
+## Short-term Goals
 1. **Requirements Accuracy Evaluator** ⏳ - Detailed analysis of requirement quality vs actual page content
 2. **Test Code Executability Checker** ⏳ - Validates generated test scenarios can actually run
 3. **Performance Benchmarking** ⏳ - Response time and resource usage optimization
 
-## Medium-term Goals (1-3 months)
+## Medium-term Goals
 1. **Completeness Scoring System** - Measures coverage of important page elements
 2. **Multi-turn Context Evaluator** - Assesses context maintenance across interactions
 3. **Comparative A/B Testing** - Framework for evaluating different agent versions
