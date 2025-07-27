@@ -205,6 +205,52 @@ docker exec -it web_testing_agent bash
 
 ## 🔧 Core Architecture
 
+### System Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Web Testing Agent System                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────┐         ┌──────────────────────────────┐     │
+│  │   User Input    │         │    LangGraph ReAct Agent     │     │
+│  │  (Gradio/CLI)   │────────▶│  ┌────────────────────────┐  │     │
+│  └─────────────────┘         │  │   State Management     │  │     │
+│                              │  │  ┌──────────────────┐  │  │     │
+│                              │  │  │  scraped_html    │  │  │     │
+│  ┌─────────────────┐         │  │  │  requirements    │  │  │     │
+│  │   OpenAI API    │◀────────│  │  │  test_code       │  │  │     │
+│  │  (GPT-4o/mini)  │         │  │  │  run_id          │  │  │     │
+│  └─────────────────┘         │  │  └──────────────────┘  │  │     │
+│                              │  └────────────────────────┘  │     │
+│                              │                              │     │
+│                              │  ┌────────────────────────┐  │     │
+│  ┌─────────────────┐         │  │      Five Tools       │  │     │
+│  │  External APIs  │◀────────│  │ • scrape_url         │  │     │
+│  │  (Firecrawl)    │         │  │ • generate_requirements│  │     │
+│  └─────────────────┘         │  │ • generate_test_code │  │     │
+│                              │  │ • show_status        │  │     │
+│                              │  │ • search_experience  │  │     │
+│                              │  └────────────────────────┘  │     │
+│                              └──────────────────────────────┘     │
+│                                           │                        │
+│  ┌────────────────────────────────────────┴────────────────────┐  │
+│  │                  PostgreSQL + PGVector Database              │  │
+│  │  ┌─────────────┐    ┌──────────────┐    ┌───────────────┐  │  │
+│  │  │    Runs     │    │  Artifacts   │    │Vector Search  │  │  │
+│  │  │   Table     │    │    Table     │    │   (HNSW)      │  │  │
+│  │  └─────────────┘    └──────────────┘    └───────────────┘  │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │                     Docker Container                         │  │
+│  │  • web_testing_agent (port 7861)                            │  │
+│  │  • postgres with pgvector (port 5432)                       │  │
+│  │  • pgadmin [optional] (port 8080)                           │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
 ### Agent Creation
 ```python
 # Clean, modern agent setup
@@ -366,6 +412,60 @@ def respond_stream(query, history, thread_id):
 - **Real-time Streaming Responses**: Gradio interface supports visualization of agent thinking process
 - **Multi-interface Support**: Web interface and CLI coexist
 - **Chinese Localization**: Supports Chinese user interface and documentation
+
+## 📊 Database Schema
+
+### Tables Structure
+
+#### 1. **runs** - Test execution records
+```sql
+CREATE TABLE runs (
+    run_id TEXT PRIMARY KEY,           -- Unique identifier (e.g., run_abc123)
+    url TEXT NOT NULL,                 -- Target URL being tested
+    start_ts TIMESTAMP DEFAULT NOW(),  -- Run start timestamp
+    status TEXT DEFAULT 'running',     -- Status: running/completed/error
+    user_id TEXT,                      -- Optional user identifier
+    model TEXT DEFAULT 'gpt-4o',       -- LLM model used
+    duration INTEGER,                  -- Execution duration in seconds
+    description TEXT,                  -- Run description/purpose
+    created_at TIMESTAMP DEFAULT NOW(),-- Record creation time
+    updated_at TIMESTAMP DEFAULT NOW() -- Last update time
+);
+```
+
+#### 2. **artifacts** - Test artifacts with semantic embeddings
+```sql
+CREATE TABLE artifacts (
+    id TEXT PRIMARY KEY,               -- Unique identifier
+    run_id TEXT NOT NULL,              -- Foreign key to runs table
+    type TEXT NOT NULL,                -- Type: tool_call/tool_result/requirement/test_code
+    text TEXT NOT NULL,                -- Artifact content
+    embedding VECTOR(512),             -- 512-dimensional semantic embedding
+    summary TEXT,                      -- AI-generated summary
+    timestamp TIMESTAMP DEFAULT NOW(), -- Creation timestamp
+    url TEXT,                          -- Associated URL
+    
+    CONSTRAINT fk_artifacts_run_id
+        FOREIGN KEY (run_id) REFERENCES runs(run_id)
+        ON DELETE CASCADE
+);
+```
+
+### Indexes
+- **Performance indexes**: `idx_runs_start_ts`, `idx_artifacts_run_id`, `idx_artifacts_type`
+- **Vector similarity index**: `idx_artifacts_embedding` using HNSW algorithm
+
+### Evaluation Metrics
+
+The system tracks the following evaluation metrics through the `show_status()` tool:
+
+1. **step_completed** - Number of successfully completed workflow steps
+2. **tool_calls** - Total number of tool invocations
+3. **success_rate** - Percentage of successful operations
+4. **execution_time** - Time taken for each operation
+5. **error_count** - Number of errors encountered
+
+Metrics are fetched from LangSmith evaluator runs and displayed in real-time during agent execution.
 
 ## 🐳 Docker Deployment Details
 
