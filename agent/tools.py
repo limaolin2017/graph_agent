@@ -162,16 +162,17 @@ def search_artifacts(query: str) -> str:
     
     for result in results:
         distance = result.get('metadata', {}).get('distance', 0)
-        if distance > 0.8:
+        if distance > 0.9:  # Relaxed threshold for better search results
             continue
             
         content = result.get('content', '')
         artifact_type = result.get('metadata', {}).get('type', '')
         
-        # Exclude tool execution records, only want actual content
+        # Exclude tool execution records, but keep scraped content
         if artifact_type in ['tool_call', 'tool_result']:
             summary = result.get('summary', '')
-            if 'ACTION:' in summary:
+            # Keep scraped content (tool_result with ✅ Scraped) but exclude other tool records
+            if 'ACTION:' in summary and not content.startswith('✅ Scraped'):
                 continue
         
         # Check if it's requirements content
